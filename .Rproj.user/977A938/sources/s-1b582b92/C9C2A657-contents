@@ -1,0 +1,132 @@
+---
+title: "Prior"
+author: "Ignacio"
+date: "4/18/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{stan output.var=prior}
+
+data {
+  int<lower = 0, upper = 1> run_estimation;               // a switch to evaluate the likelihood
+  int N ;                                                 // number of observations
+  int I ;                                                 // number of students
+  int<lower=1,upper=I> ii[N];                             // student id index
+  vector<lower=650,upper=850>[N] pre_test ;               // pre-test
+  vector<lower=650,upper=850>[N] raw_score ;              // raw_score
+  real mu_mean ;                                          //
+  real<lower=0> mu_sigma;                                 //
+  real gamma_mean;                                        //
+  real<lower=0> gamma_sigma;                              //
+  real sigma_mean ;                                       //
+  real<lower=0> sigma_sigma;                              //
+  real<lower=0> sigma_a_sigma;                            //
+}
+
+transformed data {
+  real theta = sigma_mean/((sigma_sigma*sigma_sigma)) ;
+  real k = sigma_mean/theta ;
+}
+
+parameters {
+  real mu;
+  vector[I] a_std;              
+  real<lower=0> sigma_a;
+  real<lower=0> gamma;
+  real<lower=0> sigma;
+}
+
+transformed parameters {
+  vector[I] a =  mu + sigma_a * a_std;                    // Matt trick
+}
+
+model {
+  // priors
+  mu ~ normal(mu_mean, mu_sigma);
+  a_std ~ normal(0,1);
+  sigma_a ~ normal(0,sigma_a_sigma);
+  gamma ~ normal(gamma_mean,gamma_sigma);
+  sigma ~ gamma(k,theta);
+  // likelihood, which we only evaluate conditionally
+  if(run_estimation==1){
+    raw_score ~ normal(a[ii] + gamma*pre_test, sigma);
+  }
+}
+
+generated quantities {
+  vector[N] score_sim;
+  vector[N] eta;
+  for (n in 1:N)  {
+    eta[n] = a[ii[n]] + gamma*pre_test[n] ;
+    score_sim[n] = normal_rng(eta[n], sigma);
+  }
+}
+
+```
+
+## Draw from the prior
+
+```{r}
+
+fake_data <- data.frame(id = rep(1:4,2),
+                        pre_test = c(700,725,750,790,710,735,760,800),
+                        raw_score = c(710,735,760,800,720,750,800,825),
+                        subject = c(rep("Math",4),rep("ELA",4))) %>% 
+  mutate(name = paste(fake_data$id, fake_data$subject, sep = "_"), 
+         subject = as.character(subject)) 
+
+stan_list <- list(run_estimation = 0,
+                  N = nrow(fake_data),
+                  I = length(unique(fake_data$id)),
+                  ii = fake_data$id,
+                  pre_test = fake_data$pre_test,
+                  raw_score = fake_data$raw_score,
+                  mu_mean = 700,
+                  mu_sigma = 75,
+                  gamma_mean = 0.5,
+                  gamma_sigma = 1,
+                  sigma_mean = 16,
+                  sigma_sigma = 11,
+                  sigma_a_sigma =100)
+
+fit <- sampling(prior, data = stan_list)
+
+fake_data_matrix  <- fit %>% 
+  as.data.frame %>% 
+  select(contains("score_sim"))
+
+summary_tbl <- apply(fake_data_matrix[1:10,], 1, summary)
+
+summary_tbl
+
+
+colnames(fake_data_matrix) <- fake_data$name
+
+test <- fake_data_matrix %>% 
+  gather(id_Subject, PARCC) %>% 
+  mutate(L1 = case_when(PARCC < 700 ~ 1,
+                        TRUE ~ 0),
+         L2 = case_when(PARCC >= 700 & PARCC < 725 ~ 1,
+                        TRUE ~ 0),
+         L3 = case_when(PARCC >= 725 & PARCC < 750 ~ 1,
+                        TRUE ~ 0),
+         L4 = case_when(PARCC >= 750 & PARCC < 790 ~ 1,
+                        TRUE ~ 0),
+         L5 = case_when(PARCC >= 790 ~ 1,
+                        TRUE ~ 0)) %>% 
+  group_by(id_Subject) %>% 
+  summarise_all(mean) %>% 
+  separate(id_Subject, c("id", "subject"), "_") %>% 
+  mutate(id = as.numeric(id)) %>% 
+  select(-PARCC)
+
+fake_data %>% select(id, subject, pre_test) %>% 
+  inner_join(test, by = c("id", "subject")) %>% 
+  arrange(id)
+
+```
+

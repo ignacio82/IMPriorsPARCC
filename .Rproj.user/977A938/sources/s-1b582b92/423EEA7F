@@ -1,0 +1,23 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1524053572761.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "570011984",
+    "id" : "423EEA7F",
+    "lastKnownWriteTime" : 1524053682,
+    "last_content_update" : 1524053682,
+    "path" : "~/IMPriorsPARCC/src/stan_files/parcc.stan",
+    "project_path" : "src/stan_files/parcc.stan",
+    "properties" : {
+        "cursorPosition" : "54,0",
+        "scrollLine" : "27",
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "stan"
+}
